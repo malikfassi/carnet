@@ -1,0 +1,830 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Carnet de cours</title>
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.30.0/lib/msal-browser.min.js" integrity="sha384-YnOjsoOxSYo65h1BXWnSq24bFbqW8HfzMWSEQxYEMRmjW9Vl1J3HZI3iZxqNYvIi" crossorigin="anonymous"></script>
+<script src="env.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&display=swap');
+/* Layout: travel-notebook app; left rail on desktop, bottom tabs on phone; a location strip on top like a boarding-pass line */
+:root{
+  --bg:#F3F6F7; --surface:#FFFFFF; --sunk:#E9EEF1; --ink:#15202B; --muted:#5A6877; --line:#D9E0E6;
+  --accent:#2944C4; --accent-soft:#E3E8FB;
+  --preply:#2944C4; --direct:#0E8466; --direct-soft:#DDF3EC; --trial:#A86A12; --trial-soft:#F7ECD8;
+  --warn:#B8470F; --warn-soft:#FBE6DA; --bad:#C0352F;
+  --display:'Bricolage Grotesque',ui-sans-serif,system-ui,sans-serif;
+  --body:'Figtree',ui-sans-serif,system-ui,-apple-system,sans-serif;
+  --r:10px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0E141A; --surface:#161F28; --sunk:#1C2732; --ink:#E5EBF0; --muted:#92A0AD; --line:#283441;
+  --accent:#8FA3FF; --accent-soft:#1F2A52; --preply:#8FA3FF; --direct:#3CC79E; --direct-soft:#12352B;
+  --trial:#E3B252; --trial-soft:#3A2D12; --warn:#F28A50; --warn-soft:#3B2216; --bad:#F07670; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E141A; --surface:#161F28; --sunk:#1C2732; --ink:#E5EBF0; --muted:#92A0AD; --line:#283441;
+  --accent:#8FA3FF; --accent-soft:#1F2A52; --preply:#8FA3FF; --direct:#3CC79E; --direct-soft:#12352B;
+  --trial:#E3B252; --trial-soft:#3A2D12; --warn:#F28A50; --warn-soft:#3B2216; --bad:#F07670; color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.shell{display:grid;grid-template-columns:200px minmax(0,1fr);min-height:100vh}
+.rail{position:sticky;top:0;height:100vh;padding:24px 14px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:4px;background:var(--surface)}
+.brand{font-family:var(--display);font-weight:700;font-size:20px;letter-spacing:-.01em;padding:0 10px 18px}
+.brand small{display:block;font-family:var(--body);font-weight:500;font-size:12px;color:var(--muted);letter-spacing:.02em}
+.tab{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;border:0;background:none;cursor:pointer;text-align:left;color:var(--muted);font-weight:600}
+.tab:hover{background:var(--sunk);color:var(--ink)}
+.tab[aria-current="page"]{background:var(--accent-soft);color:var(--accent)}
+.tab svg{width:18px;height:18px;flex:none}
+main{min-width:0;padding-inline:clamp(16px,3vw,36px);padding-block:20px 120px;max-width:1180px}
+.strip{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;font-size:13px;color:var(--muted);padding-bottom:14px;border-bottom:1px dashed var(--line);margin-bottom:22px}
+.strip b{color:var(--ink);font-weight:600}
+.strip .dot{width:7px;height:7px;border-radius:50%;background:var(--direct)}
+.demo{margin-left:auto;font-size:12px;background:var(--sunk);color:var(--muted);padding:3px 9px;border-radius:99px;font-weight:600;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gate{min-height:100vh;display:grid;place-items:center;padding:16px}
+.gate .panel{max-width:440px;width:100%;display:flex;flex-direction:column;gap:12px}
+.gate p{margin:0}
+.mail{display:flex;flex-direction:column;gap:2px;margin:0;padding:0;list-style:none;font-size:14px}
+.mail li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:6px 0;border-bottom:1px solid var(--line)}
+.mail li:last-child{border-bottom:0}
+.mail li span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+h1{font-family:var(--display);font-weight:700;font-size:clamp(24px,3.2vw,32px);letter-spacing:-.015em;margin:0;text-wrap:balance}
+h2{font-family:var(--display);font-weight:600;font-size:19px;margin:0;letter-spacing:-.01em}
+h3{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0;font-weight:600}
+.head{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;margin-bottom:18px}
+.head .sp{flex:1}
+.stack{display:flex;flex-direction:column;gap:22px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px}
+.panel>h2,.panel>h3{margin-bottom:12px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:3px;min-width:0}
+.kpi .v{font-family:var(--display);font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.kpi .s{font-size:13px;color:var(--muted)}
+.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);padding:7px 12px;border-radius:8px;cursor:pointer;font-weight:600;font-size:14px}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+.btn.ghost{border-color:transparent;background:none}
+.btn.icon{padding:6px 9px}
+.btn:disabled{opacity:.5;cursor:default}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:1px 8px;border-radius:99px;font-size:12px;font-weight:600;white-space:nowrap}
+.c-preply{background:var(--accent-soft);color:var(--preply)}
+.c-direct{background:var(--direct-soft);color:var(--direct)}
+.c-trial{background:var(--trial-soft);color:var(--trial)}
+.c-warn{background:var(--warn-soft);color:var(--warn)}
+.c-plain{background:var(--sunk);color:var(--muted)}
+.c-done{background:var(--sunk);color:var(--ink)}
+/* week grid */
+.week{display:grid;grid-template-columns:52px repeat(7,minmax(0,1fr));border:1px solid var(--line);border-radius:var(--r);background:var(--surface);overflow:hidden}
+.wh{padding:10px 8px;border-bottom:1px solid var(--line);border-left:1px solid var(--line);font-size:13px;min-height:58px}
+.wh b{display:block;font-size:15px}
+.wh.today{background:var(--accent-soft)}
+.wh .pl{font-size:11px;color:var(--warn);font-weight:600}
+.hours{position:relative}
+.hours div{position:absolute;right:8px;font-size:11px;color:var(--muted);transform:translateY(-50%)}
+.day{position:relative;border-left:1px solid var(--line);background-image:linear-gradient(var(--line) 1px,transparent 1px);background-size:100% var(--hh)}
+.day.today{background-color:color-mix(in srgb,var(--accent-soft) 35%,transparent)}
+.off{position:absolute;left:0;right:0;background:repeating-linear-gradient(135deg,transparent 0 6px,var(--sunk) 6px 8px);opacity:.8}
+.ev{position:absolute;left:4px;right:4px;border-radius:7px;padding:4px 7px;font-size:12px;line-height:1.25;cursor:pointer;border:0;text-align:left;overflow:hidden;border-left:3px solid}
+.ev.direct{background:var(--direct-soft);border-color:var(--direct)}
+.ev.preply{background:var(--accent-soft);border-color:var(--preply)}
+.ev.past{opacity:.6}
+.ev b{display:block;font-size:12.5px}
+.nowline{position:absolute;left:0;right:0;height:2px;background:var(--bad)}
+.agenda{display:none}
+.aday{display:flex;flex-direction:column;gap:6px}
+.aday h3{padding:4px 0}
+.arow{display:grid;grid-template-columns:62px minmax(0,1fr) auto;gap:10px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px 12px;cursor:pointer;border-left:3px solid var(--direct)}
+.arow.preply{border-left-color:var(--preply)}
+.arow .t{font-family:var(--display);font-weight:600;font-variant-numeric:tabular-nums}
+/* lists */
+.alerts{display:flex;flex-direction:column;gap:8px}
+.alert{display:grid;grid-template-columns:4px minmax(0,1fr);gap:12px;align-items:stretch}
+.alert::before{content:"";border-radius:2px;background:var(--warn)}
+.alert.info::before{background:var(--accent)}
+.alert p{margin:0}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+td.r,th.r{text-align:right}
+tr.total td{font-weight:700;border-top:2px solid var(--line)}
+tr.eur td{color:var(--direct);font-weight:700}
+tr.link{cursor:pointer}
+tr.link:hover td{background:var(--sunk)}
+.scroll{overflow-x:auto;margin-inline:-4px;padding-inline:4px}
+.grid2{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:22px;align-items:start}
+.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);font-weight:600;min-width:0}
+.in{border:1px solid var(--line);background:var(--bg);border-radius:7px;padding:7px 9px;width:100%;min-width:0;color:var(--ink);font-weight:500}
+.in:focus{border-color:var(--accent);outline:none}
+.in.n{width:5.2em;text-align:right;padding:5px 7px;font-variant-numeric:tabular-nums}
+.in.n.w{width:6.5em}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.timeline{display:flex;flex-direction:column;gap:0}
+.tl{display:grid;grid-template-columns:14px minmax(0,1fr) auto;gap:10px;align-items:center;padding:7px 0}
+.tl i{width:10px;height:10px;border-radius:50%;border:2px solid var(--accent);justify-self:center}
+.tl.cur i{background:var(--accent)}
+.bars{display:flex;align-items:flex-end;gap:10px;height:170px;padding-top:18px}
+.bar{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:stretch;gap:0;cursor:pointer;min-width:0;border:0;background:none;padding:0;height:100%}
+.bar .stack2{display:flex;flex-direction:column;justify-content:flex-end;border-radius:5px 5px 0 0;overflow:hidden}
+.bar .p{background:var(--preply)}
+.bar .d{background:var(--direct)}
+.bar .lab{font-size:12px;color:var(--muted);text-align:center;padding-top:6px;font-weight:600}
+.bar .val{font-size:11.5px;text-align:center;color:var(--ink);font-variant-numeric:tabular-nums;padding-bottom:4px}
+.bar.sel .lab{color:var(--accent)}
+.bar.sel .stack2{outline:2px solid var(--accent);outline-offset:2px}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--muted)}
+.legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px;background:var(--preply)}
+.legend span.d::before{background:var(--direct)}
+.progress{height:8px;border-radius:99px;background:var(--sunk);overflow:hidden}
+.progress div{height:100%;background:var(--accent)}
+.savebar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));display:flex;align-items:center;gap:12px;background:var(--ink);color:var(--bg);padding:10px 12px 10px 18px;border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.25);z-index:20;max-width:calc(100vw - 32px)}
+.savebar .btn{background:transparent;color:var(--bg);border-color:color-mix(in srgb,var(--bg) 35%,transparent)}
+.savebar .btn.primary{background:var(--bg);color:var(--ink);border-color:var(--bg)}
+.toast{font-size:13px}
+.empty{padding:22px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:var(--r)}
+.note{font-size:13px;color:var(--muted);margin:8px 0 0}
+.mtabs{display:none}
+@media (max-width:860px){
+  .shell{grid-template-columns:minmax(0,1fr)}
+  .rail{display:none}
+  .mtabs{display:grid;grid-template-columns:repeat(4,1fr);position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px));z-index:15}
+  .mtabs .tab{flex-direction:column;gap:2px;font-size:11px;justify-content:center;align-items:center;padding:6px 2px}
+  .week{display:none}
+  .agenda{display:flex;flex-direction:column;gap:14px}
+  .grid2{grid-template-columns:minmax(0,1fr)}
+  .savebar{bottom:calc(76px + env(safe-area-inset-bottom,0px))}
+  main{padding-block:16px 150px}
+}
+@media (prefers-reduced-motion:no-preference){.ev,.btn,.tab{transition:background-color .15s,border-color .15s}}
+</style>
+</head>
+<body>
+<script type="application/json" id="cfg-default">{"version":1,"students":[],"settings":{"travel":[{"from":"2026-01-01","label":"France","tz":"Europe/Paris"}],"workStart":7,"workEnd":21,"preply":{"tiers":[{"from":0,"rate":33},{"from":20,"rate":28},{"from":50,"rate":25},{"from":200,"rate":22},{"from":400,"rate":18}],"baseCount":0,"baseDate":"2026-01-01","trialCounts":true},"urssaf":{"rate":25.8,"base":"brut"},"fx":{"default":0.86,"months":{}},"raiseMonths":4,"noshowColor":"11","lessonWords":["cours","lesson","preply","class"]},"preplyMonths":{}}</script>
+<div id="app"></div>
+<script id="main">
+(() => {
+'use strict';
+const ICONS = {
+  semaine:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
+  eleves:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.8c1.8.7 3 2.4 3.5 5.2"/></svg>',
+  compta:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
+  reglages:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>'
+};
+const TABS = [['semaine','Semaine'],['eleves','Élèves'],['compta','Compta'],['reglages','Réglages']];
+const PLACES = [
+ ['Guatemala','America/Guatemala'],['Honduras','America/Tegucigalpa'],['Nicaragua','America/Managua'],['Salvador','America/El_Salvador'],
+ ['Costa Rica','America/Costa_Rica'],['Panama','America/Panama'],['Belize','America/Belize'],['Mexique – Mexico','America/Mexico_City'],
+ ['Mexique – Baja California Sur','America/Mazatlan'],['Mexique – Cancún','America/Cancun'],['Cuba','America/Havana'],['Colombie','America/Bogota'],
+ ['Équateur','America/Guayaquil'],['Pérou','America/Lima'],['Bolivie','America/La_Paz'],['Chili','America/Santiago'],
+ ['Argentine','America/Argentina/Buenos_Aires'],['Brésil – São Paulo','America/Sao_Paulo'],['USA – New York','America/New_York'],
+ ['USA – Chicago','America/Chicago'],['USA – Denver','America/Denver'],['USA – Los Angeles / Las Vegas','America/Los_Angeles'],
+ ['Canada – Montréal / Toronto','America/Toronto'],['Canada – Vancouver','America/Vancouver'],['France','Europe/Paris'],['Belgique','Europe/Brussels'],
+ ['Suisse','Europe/Zurich'],['Luxembourg','Europe/Luxembourg'],['Espagne','Europe/Madrid'],['Portugal','Europe/Lisbon'],['Royaume-Uni','Europe/London'],
+ ['Irlande','Europe/Dublin'],['Allemagne','Europe/Berlin'],['Italie','Europe/Rome'],['Pays-Bas','Europe/Amsterdam'],['Maroc','Africa/Casablanca'],
+ ['Algérie','Africa/Algiers'],['Tunisie','Africa/Tunis'],['Sénégal','Africa/Dakar'],['Côte d’Ivoire','Africa/Abidjan'],['Égypte','Africa/Cairo'],
+ ['Turquie','Europe/Istanbul'],['Émirats arabes unis','Asia/Dubai'],['Inde','Asia/Kolkata'],['Thaïlande','Asia/Bangkok'],['Vietnam','Asia/Ho_Chi_Minh'],
+ ['Indonésie – Bali','Asia/Makassar'],['Chine','Asia/Shanghai'],['Japon','Asia/Tokyo'],['Corée du Sud','Asia/Seoul'],['Australie – Sydney','Australia/Sydney'],
+ ['Australie – Perth','Australia/Perth'],['Nouvelle-Zélande','Pacific/Auckland']
+];
+const GCOLORS = [['1','Lavande'],['2','Sauge'],['3','Raisin'],['4','Flamant'],['5','Banane'],['6','Mandarine'],['7','Paon'],['8','Graphite'],['9','Myrtille'],['10','Basilic'],['11','Tomate']];
+
+/* ---------- state ---------- */
+const DEFAULT = JSON.parse(document.getElementById('cfg-default').textContent);
+let EVENTS = []; // cours direct : source calendrier à brancher
+let CFG = structuredClone(DEFAULT), SAVED = JSON.stringify(CFG);
+const ui = { view:'semaine', student:null, week:null, month:null, filter:'actifs', saving:false, msg:'', readonly:false,
+  phase:'boot', mail:null };
+
+/* ---------- compte Microsoft + stockage ----------
+   Réglages : OneDrive de l'utilisatrice, dossier d'application (Apps/<nom de l'app>/config.json).
+   localStorage ne sert que de cache (affichage immédiat, mode sans compte). Rien n'est stocké ailleurs. */
+const ENV = window.CARNET_ENV || {};
+const SCOPES = ['User.Read', 'Mail.Read', 'Files.ReadWrite.AppFolder'];
+const GRAPH = 'https://graph.microsoft.com/v1.0';
+const CFG_URL = GRAPH + '/me/drive/special/approot:/config.json';
+const LS_KEY = 'carnet.config.v1';
+const Store = {
+  pca: null, account: null, etag: null,
+  get local(){ return !ENV.CLIENT_ID || !window.msal; },
+  cacheGet(){ try { return JSON.parse(localStorage.getItem(LS_KEY)); } catch { return null; } },
+  cacheSet(cfg, etag){ try { localStorage.setItem(LS_KEY, JSON.stringify({ cfg, etag: etag ?? null, at: Date.now() })); } catch {} },
+  async init(){
+    if (this.local) return null;
+    this.pca = new msal.PublicClientApplication({
+      auth: { clientId: ENV.CLIENT_ID, authority: ENV.AUTHORITY || 'https://login.microsoftonline.com/common', redirectUri: location.origin + location.pathname },
+      cache: { cacheLocation: 'localStorage' } });
+    await this.pca.initialize();
+    const r = await this.pca.handleRedirectPromise().catch(() => null);
+    this.account = r?.account || this.pca.getAllAccounts()[0] || null;
+    return this.account;
+  },
+  signIn(){ return this.pca.loginRedirect({ scopes: SCOPES, prompt: 'select_account' }); },
+  signOut(){ try { localStorage.removeItem(LS_KEY); } catch {} return this.pca.logoutRedirect({ account: this.account }); },
+  async token(){
+    try { return (await this.pca.acquireTokenSilent({ scopes: SCOPES, account: this.account })).accessToken; }
+    catch (e) { if (e instanceof msal.InteractionRequiredAuthError) { await this.pca.acquireTokenRedirect({ scopes: SCOPES, account: this.account }); } throw e; }
+  },
+  async graph(url, opts = {}){
+    const r = await fetch(url.startsWith('http') ? url : GRAPH + url, { ...opts, headers: { Authorization: 'Bearer ' + await this.token(), ...(opts.headers||{}) } });
+    if (!r.ok && r.status !== 404 && r.status !== 412) throw Object.assign(new Error('Graph ' + r.status), { status: r.status });
+    return r;
+  },
+  // → { cfg, etag } ou null si aucun fichier
+  async load(){
+    const meta = await this.graph(CFG_URL);
+    if (meta.status === 404) return null;
+    const m = await meta.json();
+    const body = await fetch(m['@microsoft.graph.downloadUrl'], { cache: 'no-store' });
+    if (!body.ok) throw new Error('download ' + body.status);
+    return { cfg: await body.json(), etag: m.eTag };
+  },
+  // écrit seulement si le fichier n'a pas changé ailleurs depuis la lecture (If-Match)
+  async save(cfg){
+    const headers = { 'Content-Type': 'application/json' };
+    if (this.etag) headers['If-Match'] = this.etag;
+    const r = await this.graph(CFG_URL + ':/content', { method: 'PUT', headers, body: JSON.stringify(cfg, null, 1) });
+    if (r.status === 412) throw Object.assign(new Error('conflict'), { code: 'conflict' });
+    this.etag = (await r.json()).eTag;
+  },
+};
+const validCfg = c => c && c.settings && Array.isArray(c.students);
+function adopt(c){ CFG = c; CFG.preplyMonths ||= {}; SAVED = JSON.stringify(CFG); }
+
+/* ---------- emails Preply (lecture seule) ---------- */
+async function findPreplyFolder(){
+  const want = f => f.displayName.trim().toLowerCase() === 'preply';
+  const top = await (await Store.graph('/me/mailFolders?$top=100&$select=id,displayName,totalItemCount')).json();
+  let f = top.value.find(want); if (f) return f;
+  const inbox = await (await Store.graph('/me/mailFolders/inbox/childFolders?$top=100&$select=id,displayName,totalItemCount')).json();
+  return inbox.value.find(want) || null;
+}
+async function checkMail(){
+  ui.mail = { loading:true }; render();
+  try {
+    const f = await findPreplyFolder();
+    const url = f ? `/me/mailFolders/${f.id}/messages?$top=15&$orderby=receivedDateTime desc&$select=subject,receivedDateTime,from`
+                  : `/me/messages?$search="from:preply"&$top=15&$select=subject,receivedDateTime,from`;
+    const res = await (await Store.graph(url)).json();
+    const list = (res.value||[]).sort((a,b) => a.receivedDateTime < b.receivedDateTime ? 1 : -1);
+    ui.mail = { folder: f?.displayName || null, total: f?.totalItemCount ?? null, list };
+  } catch (e) { ui.mail = { error: e.status === 403 ? 'Accès aux emails refusé.' : 'Lecture des emails impossible pour le moment.' }; }
+  render();
+}
+
+/* ---------- time ---------- */
+const fcache = {};
+const validTz = tz => { try { new Intl.DateTimeFormat('en',{timeZone:tz}); return !!tz; } catch { return false; } };
+function parts(d, tz){
+  const f = fcache[tz] || (fcache[tz] = new Intl.DateTimeFormat('en-GB',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}));
+  const o = {}; for (const p of f.formatToParts(d)) o[p.type] = p.value;
+  return { y:+o.year, m:+o.month, d:+o.day, h:+o.hour, mi:+o.minute, key:`${o.year}-${o.month}-${o.day}`, hm:`${o.hour}:${o.minute}` };
+}
+const offsetMin = (d, tz) => { const p = parts(d,tz); return Math.round((Date.UTC(p.y,p.m-1,p.d,p.h,p.mi) - Math.floor(d.getTime()/60000)*60000)/60000); };
+const utcLabel = (d, tz) => { const o = offsetMin(d,tz), s = o<0?'−':'+', a=Math.abs(o); return `UTC${s}${Math.floor(a/60)}${a%60?':'+String(a%60).padStart(2,'0'):''}`; };
+const addDays = (key, n) => { const t = new Date(key+'T12:00:00Z'); t.setUTCDate(t.getUTCDate()+n); return t.toISOString().slice(0,10); };
+const weekday = key => (new Date(key+'T12:00:00Z').getUTCDay()+6)%7; // 0 = lundi
+const fmtKey = (key, o={weekday:'short',day:'numeric',month:'short'}) => new Intl.DateTimeFormat('fr-FR',{...o,timeZone:'UTC'}).format(new Date(key+'T12:00:00Z'));
+const monthName = mk => { const s = new Intl.DateTimeFormat('fr-FR',{month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(mk+'-15T12:00:00Z')); return s[0].toUpperCase()+s.slice(1); };
+const monthShort = mk => new Intl.DateTimeFormat('fr-FR',{month:'short',timeZone:'UTC'}).format(new Date(mk+'-15T12:00:00Z')).replace('.','');
+const addMonths = (mk, n) => { const [y,m] = mk.split('-').map(Number); const t = new Date(Date.UTC(y,m-1+n,15)); return t.toISOString().slice(0,7); };
+const monthsBetween = (a, b) => { const [y1,m1]=a.split('-').map(Number), [y2,m2]=b.split('-').map(Number); return (y2-y1)*12+(m2-m1); };
+function placeAt(d){
+  const tr = CFG.settings.travel.filter(t => t.from && validTz(t.tz)).sort((a,b)=>a.from<b.from?-1:1);
+  let cur = tr[0];
+  for (const t of tr) if (parts(d,t.tz).key >= t.from) cur = t;
+  return cur || { label:'Lieu inconnu', tz:'UTC' };
+}
+const inHours = ms => { const m = Math.round(ms/60000); if (m < 60) return `${m} min`; const h = Math.floor(m/60); if (h < 48) return `${h} h ${String(m%60).padStart(2,'0')}`; return `${Math.round(h/24)} jours`; };
+
+/* ---------- money ---------- */
+const eur = v => new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR'}).format(v||0);
+const usd = v => new Intl.NumberFormat('fr-FR',{style:'currency',currency:'USD'}).format(v||0);
+const money = (v, cur) => cur === 'EUR' ? eur(v) : usd(v);
+const nf = v => new Intl.NumberFormat('fr-FR',{maximumFractionDigits:1}).format(v||0);
+const fxFor = mk => +(CFG.settings.fx.months[mk] ?? CFG.settings.fx.default) || 0;
+const toEur = (v, cur, mk) => cur === 'EUR' ? v : v * fxFor(mk);
+const priceAt = (s, key) => { const ps = [...s.prices].filter(p=>p.from).sort((a,b)=>a.from<b.from?-1:1); let p = ps[0]; for (const x of ps) if (x.from <= key) p = x; return p ? +p.amount : 0; };
+const currentPrice = s => { const ps = [...s.prices].filter(p=>p.from).sort((a,b)=>a.from<b.from?-1:1); return ps.length ? ps[ps.length-1] : null; };
+function tierFor(n){ const t = [...CFG.settings.preply.tiers].sort((a,b)=>a.from-b.from); let r = t[0]; for (const x of t) if (n > x.from) r = x; return r; }
+
+/* ---------- derive everything from calendar events + settings ---------- */
+const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+function derive(){
+  const now = new Date();
+  const studs = CFG.students;
+  const lessons = [], unknown = [];
+  for (const ev of EVENTS){
+    const sum = norm(ev.summary);
+    const s = studs.find(st => (st.match||[]).some(w => w && sum.includes(norm(w))));
+    const start = new Date(ev.start);
+    if (!s){ if (CFG.settings.lessonWords.some(w => w && sum.includes(norm(w)))) unknown.push({ev,start}); continue; }
+    const pl = placeAt(start), zp = parts(start, pl.tz);
+    lessons.push({ ev, s, start, end:new Date(start.getTime()+50*60000), place:pl, zp, key:zp.key, mk:zp.key.slice(0,7),
+      sp: validTz(s.tz) ? parts(start, s.tz) : null, upcoming:start > now, noshow: ev.colorId && ev.colorId === CFG.settings.noshowColor });
+  }
+  lessons.sort((a,b)=>a.start-b.start);
+  const seen = new Set();
+  for (const l of lessons){
+    const cur = l.s.platform === 'direct' ? (l.s.currency||'USD') : 'USD';
+    l.trial = l.s.platform === 'preply' && !seen.has(l.s.id); seen.add(l.s.id);
+    l.price = l.trial ? 0 : priceAt(l.s, l.key); l.cur = cur;
+  }
+  return { lessons, unknown, now };
+}
+// Preply lessons that come from the calendar (none in this demo) use the running count for their tier
+function preplyFromCalendar(lessons){
+  const P = CFG.settings.preply, ref = P.baseDate;
+  const counting = lessons.filter(l => l.s.platform==='preply' && (!l.trial || P.trialCounts));
+  const before = counting.filter(l => l.key <= ref).length;
+  counting.forEach((l,i) => { l.cum = (+P.baseCount||0) - before + i + 1; l.rate = tierFor(l.cum).rate; });
+}
+function preplyCountNow(lessons, now){
+  const P = CFG.settings.preply, today = parts(now, placeAt(now).tz).key;
+  const after = lessons.filter(l => l.s.platform==='preply' && (!l.trial || P.trialCounts) && l.key > P.baseDate && l.key <= today).length;
+  return (+P.baseCount||0) + after;
+}
+
+/* month accounting, same structure as the Excel "Compta" tabs */
+function monthAccount(mk, D){
+  const st = CFG.settings, tiers = [...st.preply.tiers].sort((a,b)=>a.from-b.from), urs = (+st.urssaf.rate||0)/100, fx = fxFor(mk);
+  const rows = new Map(); let trials = 0;
+  const manual = CFG.preplyMonths[mk];
+  if (manual){ trials += +manual.trials||0;
+    for (const r of manual.rows){ const k = +r.price; const row = rows.get(k) || { price:k, counts:tiers.map(()=>0) }; tiers.forEach((t,i)=>row.counts[i] += +(r.counts[i]||0)); rows.set(k,row); } }
+  for (const l of D.lessons.filter(l => l.mk===mk && l.s.platform==='preply')){
+    if (l.trial){ trials++; continue; }
+    const row = rows.get(l.price) || { price:l.price, counts:tiers.map(()=>0) };
+    const i = tiers.findIndex(t => t.rate === l.rate); if (i >= 0) row.counts[i]++; rows.set(l.price,row);
+  }
+  const pr = [...rows.values()].sort((a,b)=>a.price-b.price).map(r => {
+    const n = r.counts.reduce((a,b)=>a+b,0), brut = n*r.price;
+    const net = r.counts.reduce((a,c,i)=>a + c*r.price*(1-tiers[i].rate/100),0);
+    const tax = urs * (st.urssaf.base==='net' ? net : brut);
+    return { ...r, n, brut, net, tax };
+  });
+  const P = pr.reduce((a,r)=>({ n:a.n+r.n, brut:a.brut+r.brut, net:a.net+r.net, tax:a.tax+r.tax, counts:a.counts.map((c,i)=>c+r.counts[i]) }), { n:0, brut:0, net:0, tax:0, counts:tiers.map(()=>0) });
+  P.profit = P.net - P.tax; P.eur = { brut:P.brut*fx, net:P.net*fx, tax:P.tax*fx, profit:P.profit*fx };
+  const dl = D.lessons.filter(l => l.mk===mk && l.s.platform==='direct');
+  const drows = new Map();
+  for (const l of dl){ const k = l.cur+'|'+l.price; const r = drows.get(k) || { price:l.price, cur:l.cur, n:0, upcoming:0 }; r.n++; if (l.upcoming) r.upcoming++; drows.set(k,r); }
+  const dr = [...drows.values()].sort((a,b)=>a.price-b.price).map(r => ({ ...r, brut:r.n*r.price, eur:toEur(r.n*r.price, r.cur, mk) }));
+  const Dt = { n:dr.reduce((a,r)=>a+r.n,0), eur:dr.reduce((a,r)=>a+r.eur,0), upcoming:dl.filter(l=>l.upcoming).length };
+  const totalN = P.n + Dt.n, totalEur = P.eur.profit + Dt.eur;
+  return { mk, tiers, trials, pr, P, dr, Dt, totalN, totalEur, avg: totalN ? totalEur/totalN : 0, fx, manual:!!manual };
+}
+
+/* ---------- helpers ---------- */
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const studentById = id => CFG.students.find(s => s.id === id);
+const platChip = s => s.platform === 'preply' ? '<span class="chip c-preply">Preply</span>' : '<span class="chip c-direct">Direct</span>';
+const markDirty = () => render();
+const dirty = () => JSON.stringify(CFG) !== SAVED;
+function getPath(path){ return path.split('.').reduce((o,k)=>o?.[k], CFG); }
+function setPath(path, val){ const ks = path.split('.'), last = ks.pop(); const o = ks.reduce((o,k)=>o[k], CFG); o[last] = val; }
+function placeOptions(sel){
+  const known = PLACES.some(p => p[1] === sel);
+  return PLACES.map(([l,tz]) => `<option value="${tz}" ${tz===sel?'selected':''}>${esc(l)}</option>`).join('') +
+    (known || !sel ? '' : `<option value="${esc(sel)}" selected>${esc(sel)}</option>`);
+}
+
+/* ---------- views ---------- */
+function vSemaine(D){
+  const now = D.now, here = placeAt(now), today = parts(now, here.tz).key;
+  const wk = ui.week || addDays(today, -weekday(today));
+  const days = [...Array(7)].map((_,i)=>addDays(wk,i));
+  const inWeek = D.lessons.filter(l => l.key >= days[0] && l.key <= days[6]);
+  const mk = today.slice(0,7), A = monthAccount(mk, D);
+  const next = D.lessons.find(l => l.start > now);
+  const st = CFG.settings;
+  // hours range
+  let h0 = +st.workStart, h1 = +st.workEnd;
+  for (const l of inWeek){ h0 = Math.min(h0, l.zp.h); h1 = Math.max(h1, l.zp.h + 1 + (l.zp.mi>10?1:0)); }
+  h0 = Math.max(0, Math.min(h0, 23)); h1 = Math.min(24, Math.max(h1, h0+1));
+  const HH = 46, H = (h1-h0)*HH;
+  const placeOf = k => placeAt(new Date(k+'T18:00:00Z'));
+  const evBlock = l => {
+    const top = ((l.zp.h - h0)*60 + l.zp.mi)/60*HH, ht = 50/60*HH;
+    return `<button class="ev ${l.s.platform}${l.upcoming?'':' past'}" style="top:${top}px;height:${ht}px" data-act="open-student" data-id="${l.s.id}" title="${esc(l.s.name)}">
+      <b>${l.zp.hm} ${esc(l.s.name)}${l.trial?' · essai':''}</b>${l.sp?`${l.sp.hm} chez ${l.s.platform==='direct'?'l’élève':'l’élève'}`:''}</button>`;
+  };
+  const grid = `<div class="week" style="--hh:${HH}px">
+    <div class="wh"></div>
+    ${days.map((k,i) => { const pl = placeOf(k), prev = i ? placeOf(days[i-1]) : null;
+      return `<div class="wh${k===today?' today':''}"><span class="muted">${fmtKey(k,{weekday:'short'})}</span><b>${fmtKey(k,{day:'numeric',month:'short'})}</b>${!prev || prev.label!==pl.label ? `<span class="pl">${esc(pl.label)}</span>`:''}</div>`; }).join('')}
+    <div class="hours" style="height:${H}px">${[...Array(h1-h0)].map((_,i)=>`<div style="top:${i*HH}px">${String(h0+i).padStart(2,'0')}:00</div>`).join('')}</div>
+    ${days.map(k => {
+      const off = [];
+      if (+st.workStart > h0) off.push(`<div class="off" style="top:0;height:${(st.workStart-h0)*HH}px"></div>`);
+      if (+st.workEnd < h1) off.push(`<div class="off" style="top:${(st.workEnd-h0)*HH}px;height:${(h1-st.workEnd)*HH}px"></div>`);
+      let nl = ''; if (k === today){ const p = parts(now, here.tz); const y = ((p.h-h0)*60+p.mi)/60*HH; if (y>=0 && y<=H) nl = `<div class="nowline" style="top:${y}px"></div>`; }
+      return `<div class="day${k===today?' today':''}" style="height:${H}px">${off.join('')}${inWeek.filter(l=>l.key===k).map(evBlock).join('')}${nl}</div>`; }).join('')}
+  </div>`;
+  const agenda = `<div class="agenda">${days.map(k => { const ls = inWeek.filter(l=>l.key===k); if (!ls.length && k!==today) return '';
+      return `<div class="aday"><h3>${fmtKey(k,{weekday:'long',day:'numeric',month:'long'})}${k===today?' · aujourd’hui':''}</h3>
+      ${ls.length ? ls.map(l => `<div class="arow ${l.s.platform}" data-act="open-student" data-id="${l.s.id}" role="button" tabindex="0">
+        <span class="t">${l.zp.hm}</span><span><b>${esc(l.s.name)}</b> <span class="muted small">${l.sp?l.sp.hm+' chez l’élève':''}</span></span>${platChip(l.s)}</div>`).join('') : '<p class="muted small" style="margin:0">Aucun cours</p>'}</div>`; }).join('') || '<div class="empty">Aucun cours cette semaine.</div>'}</div>`;
+  const alerts = buildAlerts(D);
+  const done = inWeek.filter(l => !l.upcoming).length;
+  return `
+  <div class="head"><h1>Semaine du ${fmtKey(days[0],{day:'numeric',month:'long'})}</h1><span class="sp"></span>
+    <span class="row" style="gap:6px;flex-wrap:nowrap"><button class="btn icon" data-act="week" data-n="-7" aria-label="Semaine précédente">‹</button>
+    <button class="btn" data-act="week" data-n="0">Aujourd’hui</button>
+    <button class="btn icon" data-act="week" data-n="7" aria-label="Semaine suivante">›</button></span></div>
+  <div class="stack">
+    <div class="kpis">
+      <div class="kpi"><h3>Cette semaine</h3><span class="v">${inWeek.length} cours</span><span class="s">${done} faits · ${inWeek.length-done} à venir · direct uniquement</span></div>
+      <div class="kpi"><h3>${monthName(mk)}</h3><span class="v">${eur(A.totalEur)}</span><span class="s">bénéfice estimé · ${nf(A.totalN)} cours</span></div>
+      <div class="kpi"><h3>Prochain cours</h3>${next ? `<span class="v">${esc(next.s.name)}</span><span class="s">dans ${inHours(next.start-now)} · ${fmtKey(next.key)} ${next.zp.hm} (${esc(next.place.label)})${next.sp?` · ${next.sp.hm} chez l’élève`:''}</span>` : '<span class="v">—</span><span class="s">Aucun cours prévu</span>'}</div>
+    </div>
+    ${grid}${agenda}
+    <p class="note">Heures affichées dans ton fuseau du jour, d’après tes lieux (Réglages). Les zones hachurées sont hors de tes heures de travail.</p>
+    <div class="panel"><h2>À vérifier</h2>${alerts.length ? `<div class="alerts">${alerts.join('')}</div>` : '<p class="muted" style="margin:0">Rien à signaler.</p>'}</div>
+  </div>`;
+}
+function buildAlerts(D){
+  const out = [], now = D.now, st = CFG.settings, horizon = new Date(now.getTime()+21*864e5);
+  for (const u of D.unknown.filter(u => u.start > new Date(now.getTime()-30*864e5))){
+    out.push(`<div class="alert"><div><p><b>Événement non reconnu :</b> « ${esc(u.ev.summary)} » le ${fmtKey(parts(u.start, placeAt(u.start).tz).key)}</p>
+      <div class="row" style="margin-top:6px"><select class="in" style="width:auto" id="link-${u.ev.id}">${CFG.students.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('')}</select>
+      <button class="btn" data-act="link-event" data-ev="${u.ev.id}">Associer à cet élève</button></div></div></div>`);
+  }
+  for (const s of CFG.students.filter(s => s.active && validTz(s.tz))){
+    const upcoming = D.lessons.filter(l => l.s.id===s.id && l.start > now && l.start < horizon);
+    if (!upcoming.length) continue;
+    // changement d'heure chez l'élève ou chez Zineb dans les 3 semaines
+    const gap = d => offsetMin(d, s.tz) - offsetMin(d, placeAt(d).tz);
+    let prev = gap(now);
+    for (let t = new Date(now); t < horizon; t = new Date(t.getTime()+864e5)){
+      const g = gap(t);
+      if (g !== prev){ out.push(`<div class="alert info"><p><b>Changement d’heure :</b> à partir du ${fmtKey(parts(t, s.tz).key,{weekday:'long',day:'numeric',month:'long'})}, le décalage avec <b>${esc(s.name)}</b> passe de ${nf(Math.abs(prev)/60)} h à ${nf(Math.abs(g)/60)} h. Vérifie l’heure de ses prochains cours.</p></div>`); prev = g; break; }
+    }
+    for (const l of upcoming){
+      const endH = l.zp.h + (l.zp.mi+50)/60;
+      if (l.zp.h < +st.workStart || endH > +st.workEnd)
+        out.push(`<div class="alert"><p><b>Hors de tes heures :</b> ${esc(s.name)} le ${fmtKey(l.key)} à ${l.zp.hm} (${esc(l.place.label)}).</p></div>`);
+    }
+  }
+  const today = parts(now, placeAt(now).tz).key;
+  for (const s of CFG.students.filter(s => s.active)){
+    const p = currentPrice(s); if (!p) { out.push(`<div class="alert"><p><b>${esc(s.name)} :</b> aucun prix renseigné.</p></div>`); continue; }
+    const m = monthsBetween(p.from.slice(0,7), today.slice(0,7));
+    if (m >= +st.raiseMonths) out.push(`<div class="alert info"><p><b>${esc(s.name)} :</b> même prix (${money(+p.amount, s.platform==='direct'?s.currency:'USD')}) depuis ${m} mois. C’est peut-être le moment d’augmenter.</p></div>`);
+  }
+  return out;
+}
+
+function vEleves(D){
+  const now = D.now, today = parts(now, placeAt(now).tz).key, mk = today.slice(0,7);
+  const f = ui.filter;
+  const list = CFG.students.filter(s => f==='tous' || (f==='actifs' && s.active) || (f==='inactifs' && !s.active) || (f===s.platform && s.active));
+  const chips = [['actifs','Actifs'],['preply','Preply'],['direct','Direct'],['inactifs','Inactifs'],['tous','Tous']]
+    .map(([k,l]) => `<button class="btn${f===k?' primary':''}" data-act="filter" data-f="${k}">${l}</button>`).join('');
+  const rows = list.map(s => {
+    const ls = D.lessons.filter(l => l.s.id===s.id), nx = ls.find(l => l.start > now), p = currentPrice(s);
+    const cur = s.platform==='direct' ? s.currency : 'USD';
+    return `<tr class="link" data-act="open-student" data-id="${s.id}">
+      <td><b>${esc(s.name)}</b></td><td>${platChip(s)}</td>
+      <td>${esc(s.place||s.tz)}<div class="muted small">${validTz(s.tz)?`${parts(now,s.tz).hm} chez l’élève · ${utcLabel(now,s.tz)}`:'fuseau à renseigner'}</div></td>
+      <td class="r num">${p?money(+p.amount,cur):'—'}<div class="muted small">${p?`depuis ${monthsBetween(p.from.slice(0,7), mk)} mois`:''}</div></td>
+      <td class="r num">${ls.filter(l=>l.mk===mk).length}</td><td class="r num">${ls.filter(l=>!l.upcoming).length}</td>
+      <td class="num">${nx?`${fmtKey(nx.key)} ${nx.zp.hm}`:'—'}</td></tr>`;
+  }).join('');
+  return `<div class="head"><h1>Élèves</h1><span class="sp"></span><button class="btn primary" data-act="add-student">+ Ajouter un élève</button></div>
+  <div class="stack">
+    <div class="row">${chips}</div>
+    <div class="panel" style="padding:6px 8px"><div class="scroll"><table>
+      <thead><tr><th>Élève</th><th>Plateforme</th><th>Lieu</th><th class="r">Prix actuel</th><th class="r">Ce mois</th><th class="r">Cours faits</th><th>Prochain cours</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="7" class="muted">Aucun élève dans ce filtre.</td></tr>'}</tbody></table></div></div>
+    <p class="note">Tes élèves Preply apparaîtront ici dès que la lecture de tes emails Preply sera prête. En attendant, leurs cours se saisissent par mois dans Compta, comme dans ton fichier Excel.</p>
+  </div>`;
+}
+
+function vEleve(D){
+  const i = CFG.students.findIndex(s => s.id === ui.student), s = CFG.students[i];
+  if (!s) { ui.view = 'eleves'; return vEleves(D); }
+  const now = D.now, today = parts(now, placeAt(now).tz).key, mk = today.slice(0,7);
+  const ls = D.lessons.filter(l => l.s.id===s.id), done = ls.filter(l=>!l.upcoming), nx = ls.find(l=>l.start>now);
+  const cur = s.platform==='direct' ? s.currency : 'USD';
+  const p = currentPrice(s);
+  const earned = done.reduce((a,l) => { const brut = l.price; if (s.platform==='direct') return a + toEur(brut, cur, l.mk);
+    const net = brut*(1-(l.rate||tierFor(+CFG.settings.preply.baseCount).rate)/100); const tax = (CFG.settings.urssaf.rate/100)*(CFG.settings.urssaf.base==='net'?net:brut); return a + (net-tax)*fxFor(l.mk); }, 0);
+  const prices = s.prices.map((x,j)=>({...x,j})).sort((a,b)=>a.from<b.from?-1:1);
+  const since = p ? monthsBetween(p.from.slice(0,7), mk) : 0;
+  const byMonth = {}; for (const l of ls) (byMonth[l.mk] ||= []).push(l);
+  const P = `students.${i}`;
+  return `<div class="head"><button class="btn ghost" data-act="tab" data-v="eleves">‹ Élèves</button></div>
+  <div class="head"><h1>${esc(s.name)}</h1>${platChip(s)}${s.active?'':'<span class="chip c-plain">Inactif</span>'}<span class="sp"></span>
+    <span class="muted">${validTz(s.tz)?`Il est <b class="num" style="color:var(--ink)">${parts(now,s.tz).hm}</b> chez l’élève (${esc(s.place||s.tz)}, ${utcLabel(now,s.tz)})`:''}</span></div>
+  <div class="stack">
+    <div class="kpis">
+      <div class="kpi"><h3>Prochain cours</h3><span class="v">${nx?`${fmtKey(nx.key)}`:'—'}</span><span class="s">${nx?`${nx.zp.hm} pour toi (${esc(nx.place.label)})${nx.sp?` · ${nx.sp.hm} chez l’élève`:''}`:'Aucun cours prévu'}</span></div>
+      <div class="kpi"><h3>Cours faits</h3><span class="v">${done.length}</span><span class="s">${ls.filter(l=>l.mk===mk).length} ce mois-ci · ${ls.filter(l=>l.upcoming).length} à venir</span></div>
+      <div class="kpi"><h3>Gagné</h3><span class="v">${eur(earned)}</span><span class="s">bénéfice sur les cours faits</span></div>
+      <div class="kpi"><h3>Prix actuel</h3><span class="v">${p?money(+p.amount,cur):'—'}</span><span class="s">${p?`depuis ${since} mois${since>=+CFG.settings.raiseMonths?' · à augmenter ?':''}`:'à renseigner'}</span></div>
+    </div>
+    <div class="grid2">
+      <div class="panel"><h2>Cours</h2>
+        ${Object.keys(byMonth).sort().reverse().map(m => `<h3 style="margin:14px 0 4px">${monthName(m)} · ${byMonth[m].length} cours</h3>
+          <div class="scroll"><table><tbody>${byMonth[m].slice().reverse().map(l => `<tr>
+            <td class="num">${fmtKey(l.key)}</td><td class="num"><b>${l.zp.hm}</b> <span class="muted small">${esc(l.place.label)}</span></td>
+            <td class="num muted">${l.sp?l.sp.hm+' chez l’élève':''}</td><td class="r num">${l.trial?'—':money(l.price,l.cur)}</td>
+            <td class="r">${l.trial?'<span class="chip c-trial">Essai</span>':l.noshow?'<span class="chip c-warn">Absent</span>':l.upcoming?'<span class="chip c-plain">Prévu</span>':'<span class="chip c-done">Fait</span>'}</td></tr>`).join('')}</tbody></table></div>`).join('') || '<div class="empty">Aucun cours trouvé dans le calendrier pour cet élève. Vérifie les mots-clés ci-contre.</div>'}
+      </div>
+      <div class="stack">
+        <div class="panel"><h2>Prix</h2>
+          <div class="timeline">${prices.map((x,k)=>`<div class="tl${k===prices.length-1?' cur':''}"><i></i><span><b class="num">${money(+x.amount,cur)}</b> <span class="muted small">à partir du ${x.from?fmtKey(x.from,{day:'numeric',month:'long',year:'numeric'}):'?'}</span></span>
+            <button class="btn ghost icon" data-act="del-price" data-i="${i}" data-j="${x.j}" aria-label="Supprimer ce prix">✕</button></div>`).join('') || '<p class="muted">Aucun prix.</p>'}</div>
+          <div class="row" style="margin-top:10px"><input class="in n w" type="number" step="0.5" min="0" id="np-amount" placeholder="Prix" value="${p?+p.amount+ (s.platform==='preply'?3:1):''}">
+            <input class="in" style="width:auto" type="date" id="np-from" value="${today}"><button class="btn" data-act="add-price" data-i="${i}">Augmenter le prix</button></div>
+          <p class="note">Chaque cours garde le prix en vigueur à sa date. Une augmentation ne change pas le passé.</p>
+        </div>
+        <div class="panel"><h2>Infos</h2><div class="form">
+          <label class="f">Nom<input class="in" data-path="${P}.name" value="${esc(s.name)}"></label>
+          <label class="f">Plateforme<select class="in" data-path="${P}.platform"><option value="preply" ${s.platform==='preply'?'selected':''}>Preply</option><option value="direct" ${s.platform==='direct'?'selected':''}>Direct (virement)</option></select></label>
+          <label class="f">Pays / fuseau<select class="in" data-act-change="student-place" data-i="${i}">${placeOptions(s.tz)}</select></label>
+          ${s.platform==='direct'?`<label class="f">Devise<select class="in" data-path="${P}.currency"><option value="USD" ${s.currency==='USD'?'selected':''}>Dollar ($)</option><option value="EUR" ${s.currency==='EUR'?'selected':''}>Euro (€)</option></select></label>`:''}
+          <label class="f" style="grid-column:1/-1">Mots dans le titre de l’événement<input class="in" data-path="${P}.match" data-list="1" value="${esc((s.match||[]).join(', '))}"><span class="muted small" style="font-weight:400">Séparés par des virgules. Un événement du calendrier contenant un de ces mots est un cours de cet élève.</span></label>
+          <label class="f" style="grid-column:1/-1">Notes<textarea class="in" rows="3" data-path="${P}.notes">${esc(s.notes)}</textarea></label>
+          <label class="row small"><input type="checkbox" data-path="${P}.active" data-bool="1" ${s.active?'checked':''}> Élève actif</label>
+        </div></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function vCompta(D){
+  const now = D.now, today = parts(now, placeAt(now).tz).key;
+  const months = new Set(Object.keys(CFG.preplyMonths)); D.lessons.forEach(l => months.add(l.mk)); months.add(today.slice(0,7));
+  const sorted = [...months].sort(); const first = sorted[0], last = sorted[sorted.length-1];
+  const all = []; for (let m = first; m <= last; m = addMonths(m,1)) all.push(m);
+  const mk = ui.month || today.slice(0,7);
+  const A = monthAccount(mk, D), accs = all.map(m => monthAccount(m, D));
+  const max = Math.max(1, ...accs.map(a => Math.max(0,a.P.eur.profit) + a.Dt.eur));
+  const tiers = A.tiers, man = CFG.preplyMonths[mk];
+  const count = preplyCountNow(D.lessons, now), t = tierFor(count), nextT = [...tiers].sort((a,b)=>a.from-b.from).find(x => x.from >= count);
+  const prevT = [...tiers].sort((a,b)=>a.from-b.from).filter(x=>x.from<count).pop();
+  const pct = nextT ? Math.min(100, (count-(prevT?.from||0))/((nextT.from-(prevT?.from||0))||1)*100) : 100;
+  // Preply table: editable counts when the month is entered by hand
+  const prow = (r, idx) => `<tr><td class="num"><b>${usd(r.price)}</b></td>
+    ${r.counts.map((c,ti) => `<td class="r">${man ? `<input class="in n" type="number" step="0.5" min="0" data-path="preplyMonths.${mk}.rows.${idx}.counts.${ti}" data-num="1" value="${c||0}" aria-label="Cours à ${usd(r.price)}, commission ${tiers[ti].rate} %">` : `<span class="num">${nf(c)}</span>`}</td>`).join('')}
+    <td class="r num">${nf(r.n)}</td><td class="r num">${usd(r.brut)}</td><td class="r num">${usd(r.net)}</td><td class="r num">${usd(r.tax)}</td>
+    ${man?`<td><button class="btn ghost icon" data-act="del-prow" data-idx="${idx}" aria-label="Supprimer la ligne ${usd(r.price)}">✕</button></td>`:''}</tr>`;
+  const manualRows = man ? man.rows.map(r => { const n = tiers.reduce((a,_,i)=>a+(+r.counts[i]||0),0), brut=n*r.price, net=tiers.reduce((a,x,i)=>a+(+r.counts[i]||0)*r.price*(1-x.rate/100),0); return { price:+r.price, counts:tiers.map((_,i)=>+r.counts[i]||0), n, brut, net, tax:(CFG.settings.urssaf.rate/100)*(CFG.settings.urssaf.base==='net'?net:brut) }; }) : A.pr;
+  return `<div class="head"><h1>Compta · ${monthName(mk)}</h1><span class="sp"></span>
+    <span class="row" style="gap:6px;flex-wrap:nowrap"><button class="btn icon" data-act="month" data-n="-1" aria-label="Mois précédent">‹</button>
+    <button class="btn" data-act="month" data-n="0">Ce mois-ci</button>
+    <button class="btn icon" data-act="month" data-n="1" aria-label="Mois suivant">›</button></span></div>
+  <div class="stack">
+    <div class="kpis">
+      <div class="kpi"><h3>Bénéfices totaux</h3><span class="v">${eur(A.totalEur)}</span><span class="s">Preply ${eur(A.P.eur.profit)} · direct ${eur(A.Dt.eur)}</span></div>
+      <div class="kpi"><h3>Total cours / mois</h3><span class="v">${nf(A.totalN)}</span><span class="s">${nf(A.P.n)} Preply · ${A.Dt.n} direct · ${nf(A.trials)} essais${A.Dt.upcoming?` · dont ${A.Dt.upcoming} direct à venir`:''}</span></div>
+      <div class="kpi"><h3>Prix moyen / cours</h3><span class="v">${eur(A.avg)}</span><span class="s">bénéfice net par cours payé</span></div>
+      <div class="kpi"><h3>URSSAF à déclarer</h3><span class="v">${eur(A.P.eur.tax)}</span><span class="s">sur ${eur(CFG.settings.urssaf.base==='net'?A.P.eur.net:A.P.eur.brut)} de CA Preply (${nf(CFG.settings.urssaf.rate)} %)</span></div>
+    </div>
+    <div class="panel">
+      <div class="row" style="justify-content:space-between"><h2>Bénéfices par mois</h2><div class="legend"><span>Preply</span><span class="d">Direct</span></div></div>
+      <div class="bars">${accs.map(a => { const p = Math.max(0,a.P.eur.profit), d = a.Dt.eur, h = (p+d)/max*120;
+        return `<button class="bar${a.mk===mk?' sel':''}" data-act="pick-month" data-m="${a.mk}" aria-label="${monthName(a.mk)} : ${eur(p+d)}">
+          <span class="val">${(p+d)?Math.round(p+d)+' €':''}</span>
+          <span class="stack2" style="height:${Math.max(h, (p+d)?3:0)}px"><span class="d" style="height:${(p+d)?d/(p+d)*100:0}%"></span><span class="p" style="height:${(p+d)?p/(p+d)*100:0}%"></span></span>
+          <span class="lab">${monthShort(a.mk)}</span></button>`; }).join('')}</div>
+    </div>
+    <div class="panel">
+      <div class="row" style="justify-content:space-between;margin-bottom:10px"><h2>Preply</h2>
+        <span class="small muted">${man ? 'Saisi à la main (comme dans Excel)' : 'Calculé depuis le calendrier'} · 1 $ = ${String(A.fx).replace('.',',')} €</span></div>
+      ${(man || A.pr.length || A.trials) ? `<div class="scroll"><table>
+        <thead><tr><th>Prix</th>${tiers.map(x=>`<th class="r">${nf(x.rate)} %</th>`).join('')}<th class="r">Total cours</th><th class="r">Solde brut</th><th class="r">Solde net</th><th class="r">Taxe URSSAF</th>${man?'<th></th>':''}</tr></thead>
+        <tbody>
+          <tr><td class="muted">Essais</td><td colspan="${tiers.length}" class="small muted">premier cours avec un nouvel élève, non payé</td><td class="r">${man?`<input class="in n" type="number" step="0.5" min="0" data-path="preplyMonths.${mk}.trials" data-num="1" value="${man.trials||0}" aria-label="Essais">`:`<span class="num">${nf(A.trials)}</span>`}</td><td colspan="${man?4:3}"></td></tr>
+          ${manualRows.map(prow).join('')}
+          <tr class="total"><td>Total en dollars</td>${A.P.counts.map(c=>`<td class="r num">${nf(c)}</td>`).join('')}<td class="r num">${nf(A.P.n)}</td><td class="r num">${usd(A.P.brut)}</td><td class="r num">${usd(A.P.net)}</td><td class="r num">${usd(A.P.tax)}</td>${man?'<td></td>':''}</tr>
+          <tr class="eur"><td>Équivalent en euros</td><td colspan="${tiers.length+1}" class="small muted" style="font-weight:500">Bénéfices : <b style="color:var(--direct)">${eur(A.P.eur.profit)}</b></td><td class="r num">${eur(A.P.eur.brut)}</td><td class="r num">${eur(A.P.eur.net)}</td><td class="r num">${eur(A.P.eur.tax)}</td>${man?'<td></td>':''}</tr>
+        </tbody></table></div>
+        ${man?`<div class="row" style="margin-top:10px"><input class="in n w" type="number" step="0.5" min="0" id="new-prow" placeholder="Prix $"><button class="btn" data-act="add-prow">Ajouter un prix</button></div>`:''}`
+      : `<div class="empty">Aucun cours Preply pour ce mois.<div style="margin-top:10px"><button class="btn primary" data-act="new-pmonth">Saisir les cours Preply de ${monthName(mk).toLowerCase()}</button></div></div>`}
+      <div style="margin-top:16px;display:flex;flex-direction:column;gap:6px">
+        <div class="row" style="justify-content:space-between"><span class="small"><b>${nf(count)} cours Preply</b> au total · commission actuelle <b>${nf(t.rate)} %</b></span>
+          <span class="small muted">${nextT?`encore ${nf(nextT.from-count)} cours avant ${nf(nextT.rate)} %`:'palier le plus bas atteint'}</span></div>
+        <div class="progress"><div style="width:${pct}%"></div></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="row" style="justify-content:space-between;margin-bottom:10px"><h2>Hors Preply (direct)</h2><span class="small muted">Calculé depuis le calendrier · pas d’URSSAF pour l’instant</span></div>
+      ${A.dr.length ? `<div class="scroll"><table><thead><tr><th>Prix</th><th class="r">Cours</th><th class="r">Solde brut</th><th class="r">En euros</th></tr></thead><tbody>
+        ${A.dr.map(r=>`<tr><td class="num"><b>${money(r.price,r.cur)}</b></td><td class="r num">${r.n}${r.upcoming?` <span class="muted small">(${r.upcoming} à venir)</span>`:''}</td><td class="r num">${money(r.brut,r.cur)}</td><td class="r num">${eur(r.eur)}</td></tr>`).join('')}
+        <tr class="total"><td>Total</td><td class="r num">${A.Dt.n}</td><td></td><td class="r num">${eur(A.Dt.eur)}</td></tr></tbody></table></div>`
+      : '<div class="empty">Aucun cours direct ce mois-ci.</div>'}
+    </div>
+    <div class="panel"><h2>Récapitulatif</h2><div class="scroll"><table>
+      <thead><tr><th>Mois</th><th class="r">Cours Preply</th><th class="r">Essais</th><th class="r">Cours direct</th><th class="r">URSSAF</th><th class="r">Bénéfices</th><th class="r">Prix moyen / cours</th></tr></thead>
+      <tbody>${accs.map(a=>`<tr class="link" data-act="pick-month" data-m="${a.mk}"><td><b>${monthName(a.mk)}</b></td><td class="r num">${nf(a.P.n)}</td><td class="r num">${nf(a.trials)}</td><td class="r num">${a.Dt.n}</td><td class="r num">${eur(a.P.eur.tax)}</td><td class="r num"><b>${eur(a.totalEur)}</b></td><td class="r num">${a.totalN?eur(a.avg):'—'}</td></tr>`).join('')}
+      <tr class="total"><td>Total</td><td class="r num">${nf(accs.reduce((s,a)=>s+a.P.n,0))}</td><td class="r num">${nf(accs.reduce((s,a)=>s+a.trials,0))}</td><td class="r num">${accs.reduce((s,a)=>s+a.Dt.n,0)}</td><td class="r num">${eur(accs.reduce((s,a)=>s+a.P.eur.tax,0))}</td><td class="r num">${eur(accs.reduce((s,a)=>s+a.totalEur,0))}</td><td></td></tr></tbody></table></div></div>
+  </div>`;
+}
+
+function vReglages(D){
+  const st = CFG.settings, now = D.now, here = placeAt(now);
+  const tr = st.travel.map((t,i)=>({...t,i})).sort((a,b)=>a.from<b.from?-1:1);
+  const fxm = Object.keys(st.fx.months).sort();
+  const M = ui.mail;
+  const mailBody = !M ? '<p class="muted small" style="margin:0">Vérifie que le carnet trouve bien tes emails Preply.</p>'
+    : M.loading ? '<p class="muted small" style="margin:0">Lecture…</p>'
+    : M.error ? `<p class="small" style="margin:0;color:var(--warn)">${esc(M.error)}</p>`
+    : `<p class="small" style="margin:0 0 8px">${M.folder ? `Dossier <b>${esc(M.folder)}</b> · ${M.total ?? '?'} emails` : 'Pas de dossier « Preply » trouvé : recherche des emails venant de Preply dans toute la boîte.'}</p>
+       ${M.list.length ? `<ul class="mail">${M.list.map(m => `<li><span>${esc(m.subject||'(sans objet)')}</span><span class="muted num">${fmtKey(m.receivedDateTime.slice(0,10))}</span></li>`).join('')}</ul>` : '<p class="muted small" style="margin:0">Aucun email trouvé.</p>'}`;
+  return `<div class="head"><h1>Réglages</h1></div>
+  <div class="stack">
+    <div class="grid2">
+      <div class="panel"><h2>Compte</h2>
+        <p class="small" style="margin:0 0 12px">${Store.local ? 'Mode local (test) : réglages enregistrés seulement dans ce navigateur.' : `Connectée avec <b>${esc(Store.account?.username||'')}</b>. Tes réglages sont enregistrés dans ton OneDrive et se retrouvent sur tous tes appareils.`}</p>
+        ${Store.local ? '' : '<button class="btn" data-act="signout">Se déconnecter</button>'}
+      </div>
+      <div class="panel"><div class="row" style="justify-content:space-between;margin-bottom:12px"><h2>Emails Preply</h2>
+        ${Store.local ? '' : `<button class="btn" data-act="check-mail" ${M?.loading?'disabled':''}>Vérifier</button>`}</div>
+        ${Store.local ? '<p class="muted small" style="margin:0">Disponible une fois connectée avec Microsoft.</p>' : mailBody}
+      </div>
+    </div>
+    <div class="panel"><h2>Mes lieux</h2>
+      <p class="muted small" style="margin:-4px 0 12px">Tu es actuellement : <b style="color:var(--ink)">${esc(here.label)}</b> (${utcLabel(now, here.tz)}). Ajoute tes prochaines destinations : les heures de cours s’adaptent automatiquement à partir de chaque date.</p>
+      <div class="scroll"><table><thead><tr><th>À partir du</th><th>Pays / fuseau</th><th>Nom affiché</th><th>Heure là-bas</th><th></th></tr></thead><tbody>
+      ${tr.map(t=>`<tr><td><input class="in" style="width:auto" type="date" data-path="settings.travel.${t.i}.from" value="${t.from}"></td>
+        <td><select class="in" data-act-change="travel-place" data-i="${t.i}">${placeOptions(t.tz)}</select></td>
+        <td><input class="in" data-path="settings.travel.${t.i}.label" value="${esc(t.label)}"></td>
+        <td class="num muted">${validTz(t.tz)?`${parts(now,t.tz).hm} · ${utcLabel(now,t.tz)}`:'?'}</td>
+        <td><button class="btn ghost icon" data-act="del-travel" data-i="${t.i}" aria-label="Supprimer ce lieu" ${st.travel.length<2?'disabled':''}>✕</button></td></tr>`).join('')}
+      </tbody></table></div>
+      <div class="row" style="margin-top:10px"><button class="btn" data-act="add-travel">+ Ajouter une destination</button></div>
+    </div>
+    <div class="grid2">
+      <div class="panel"><h2>Commission Preply</h2>
+        <div class="scroll"><table><thead><tr><th>À partir de (cours)</th><th>Commission</th></tr></thead><tbody>
+        ${st.preply.tiers.map((t,i)=>`<tr><td><input class="in n" type="number" min="0" data-path="settings.preply.tiers.${i}.from" data-num="1" value="${t.from}"> cours</td><td><input class="in n" type="number" step="0.5" min="0" max="100" data-path="settings.preply.tiers.${i}.rate" data-num="1" value="${t.rate}"> %</td></tr>`).join('')}
+        </tbody></table></div>
+        <div class="form" style="margin-top:12px">
+          <label class="f">Cours Preply déjà donnés<input class="in" type="number" min="0" data-path="settings.preply.baseCount" data-num="1" value="${st.preply.baseCount}"></label>
+          <label class="f">à la date du<input class="in" type="date" data-path="settings.preply.baseDate" value="${st.preply.baseDate}"></label>
+        </div>
+        <label class="row small" style="margin-top:10px"><input type="checkbox" data-path="settings.preply.trialCounts" data-bool="1" ${st.preply.trialCounts?'checked':''}> Les essais comptent dans le total de cours</label>
+      </div>
+      <div class="stack">
+        <div class="panel"><h2>URSSAF</h2><div class="form">
+          <label class="f">Taux<span class="row"><input class="in n" type="number" step="0.1" min="0" data-path="settings.urssaf.rate" data-num="1" value="${st.urssaf.rate}"> %</span></label>
+          <label class="f">Calculé sur<select class="in" data-path="settings.urssaf.base"><option value="brut" ${st.urssaf.base==='brut'?'selected':''}>Solde brut (avant commission)</option><option value="net" ${st.urssaf.base==='net'?'selected':''}>Solde net (après commission)</option></select></label>
+        </div><p class="note">Appliqué aux cours Preply uniquement.</p></div>
+        <div class="panel"><h2>Taux de change</h2>
+          <label class="f">Taux par défaut (1 $ en €)<input class="in n w" type="number" step="0.01" min="0" data-path="settings.fx.default" data-num="1" value="${st.fx.default}"></label>
+          <div class="scroll" style="margin-top:10px"><table><tbody>${fxm.map(m=>`<tr><td>${monthName(m)}</td><td class="r"><input class="in n" type="number" step="0.01" min="0" data-path="settings.fx.months.${m}" data-num="1" value="${st.fx.months[m]}"></td><td><button class="btn ghost icon" data-act="del-fx" data-m="${m}" aria-label="Supprimer le taux de ${monthName(m)}">✕</button></td></tr>`).join('')}</tbody></table></div>
+          <div class="row" style="margin-top:8px"><input class="in" style="width:auto" type="month" id="fx-m"><input class="in n" type="number" step="0.01" id="fx-v" placeholder="0,86"><button class="btn" data-act="add-fx">Ajouter</button></div>
+        </div>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="panel"><h2>Heures et prix</h2><div class="form">
+        <label class="f">Je travaille de<span class="row"><input class="in n" type="number" min="0" max="23" data-path="settings.workStart" data-num="1" value="${st.workStart}"> h</span></label>
+        <label class="f">à<span class="row"><input class="in n" type="number" min="1" max="24" data-path="settings.workEnd" data-num="1" value="${st.workEnd}"> h</span></label>
+        <label class="f">Proposer une augmentation après<span class="row"><input class="in n" type="number" min="1" data-path="settings.raiseMonths" data-num="1" value="${st.raiseMonths}"> mois</span></label>
+      </div></div>
+      <div class="panel"><h2>Calendrier</h2><div class="form">
+        <label class="f">Couleur des cours « absent mais payé »<select class="in" data-path="settings.noshowColor">${GCOLORS.map(([v,l])=>`<option value="${v}" ${st.noshowColor===v?'selected':''}>${l}</option>`).join('')}</select></label>
+        <label class="f">Mots qui signalent un cours<input class="in" data-path="settings.lessonWords" data-list="1" value="${esc(st.lessonWords.join(', '))}"></label>
+      </div><p class="note">Un événement qui contient un de ces mots sans correspondre à un élève apparaît dans « À vérifier ».</p></div>
+    </div>
+  </div>`;
+}
+
+/* ---------- render ---------- */
+function vGate(){
+  const who = Store.account?.username;
+  const body = {
+    boot: `<p class="muted">Chargement…</p>`,
+    signin: `<p>Connecte-toi avec ton compte Microsoft (Outlook) pour retrouver tes réglages et lire tes emails Preply.</p>
+      <p class="muted small">Le carnet lit uniquement tes emails et son propre dossier dans ton OneDrive (<b>Apps</b>). Il ne voit pas tes autres fichiers et ne stocke rien ailleurs.</p>
+      <button class="btn primary" data-act="signin">Se connecter avec Microsoft</button>`,
+    error: `<p>Le carnet n’arrive pas à joindre Microsoft pour le moment.</p>
+      <div class="row"><button class="btn primary" data-act="reload">Réessayer</button>${Store.account?'<button class="btn" data-act="signout">Se déconnecter</button>':''}</div>`,
+  }[ui.phase];
+  return `<div class="gate"><div class="panel"><div class="brand" style="padding:0 0 12px">Carnet de cours<small>Zineb · français</small></div>${body}</div></div>`;
+}
+
+function render(){
+  if (ui.phase !== 'ready'){ document.getElementById('app').innerHTML = vGate(); return; }
+  const D = derive(); preplyFromCalendar(D.lessons);
+  const now = D.now, here = placeAt(now), hp = parts(now, here.tz);
+  const view = { semaine:vSemaine, eleves:vEleves, eleve:vEleve, compta:vCompta, reglages:vReglages }[ui.view](D);
+  const tabs = TABS.map(([k,l]) => `<button class="tab" data-act="tab" data-v="${k}" ${ui.view===k || (k==='eleves'&&ui.view==='eleve') ? 'aria-current="page"':''}>${ICONS[k]}<span>${l}</span></button>`).join('');
+  const sy = window.scrollY, act = document.activeElement?.id;
+  document.getElementById('app').innerHTML = `<div class="shell">
+    <nav class="rail"><div class="brand">Carnet de cours<small>Zineb · français</small></div>${tabs}</nav>
+    <main><div class="strip"><span class="dot"></span><span>Tu es à <b>${esc(here.label)}</b></span><span class="num">${fmtKey(hp.key,{weekday:'long',day:'numeric',month:'long'})} · <b>${hp.hm}</b> · ${utcLabel(now,here.tz)}</span>
+      <span class="demo">${Store.local ? 'Mode local · réglages dans ce navigateur' : esc(Store.account?.username||'')}</span></div>${view}</main>
+    <nav class="mtabs">${tabs}</nav></div>
+    ${dirty() || ui.msg ? `<div class="savebar" role="status">${ui.msg ? `<span class="toast">${esc(ui.msg)}</span>` : '<span class="toast">Modifications non enregistrées</span>'}
+      ${dirty() && !ui.readonly ? `<button class="btn" data-act="discard">Annuler</button><button class="btn primary" data-act="save" ${ui.saving?'disabled':''}>${ui.saving?'Enregistrement…':'Enregistrer'}</button>` : ''}</div>` : ''}`;
+  window.scrollTo(0, sy); if (act) document.getElementById(act)?.focus();
+}
+
+/* ---------- actions ---------- */
+const uid = () => Math.random().toString(36).slice(2,9);
+function act(a, el){
+  const D = () => derive();
+  switch(a){
+    case 'tab': ui.view = el.dataset.v; window.scrollTo(0,0); break;
+    case 'open-student': ui.view = 'eleve'; ui.student = el.dataset.id; window.scrollTo(0,0); break;
+    case 'filter': ui.filter = el.dataset.f; break;
+    case 'week': { const n = +el.dataset.n, now = new Date(), t = parts(now, placeAt(now).tz).key, cur = ui.week || addDays(t, -weekday(t)); ui.week = n ? addDays(cur, n) : null; break; }
+    case 'month': { const n = +el.dataset.n, t = parts(new Date(), placeAt(new Date()).tz).key.slice(0,7); ui.month = n ? addMonths(ui.month || t, n) : null; break; }
+    case 'pick-month': ui.month = el.dataset.m; window.scrollTo(0,0); break;
+    case 'add-student': { const id = uid(); CFG.students.push({ id, name:'Nouvel élève', platform:'direct', place:'France', tz:'Europe/Paris', currency:'USD', prices:[], match:[], notes:'', active:true }); ui.view='eleve'; ui.student=id; break; }
+    case 'add-price': { const s = CFG.students[+el.dataset.i], amt = parseFloat(document.getElementById('np-amount').value), from = document.getElementById('np-from').value;
+      if (!(amt >= 0) || !from) { ui.msg = 'Indique un prix et une date.'; break; } s.prices.push({ from, amount:amt }); ui.msg=''; break; }
+    case 'del-price': CFG.students[+el.dataset.i].prices.splice(+el.dataset.j,1); break;
+    case 'add-travel': { const last = [...CFG.settings.travel].sort((a,b)=>a.from<b.from?-1:1).pop(); CFG.settings.travel.push({ from: addDays(last?.from || new Date().toISOString().slice(0,10), 30), label:'France', tz:'Europe/Paris' }); break; }
+    case 'del-travel': CFG.settings.travel.splice(+el.dataset.i,1); break;
+    case 'add-fx': { const m = document.getElementById('fx-m').value, v = parseFloat(document.getElementById('fx-v').value); if (m && v > 0) CFG.settings.fx.months[m] = v; break; }
+    case 'del-fx': delete CFG.settings.fx.months[el.dataset.m]; break;
+    case 'new-pmonth': { const mk = ui.month || parts(new Date(), placeAt(new Date()).tz).key.slice(0,7); const prev = Object.keys(CFG.preplyMonths).filter(k=>k<mk).sort().pop();
+      const prices = prev ? CFG.preplyMonths[prev].rows.map(r=>r.price) : [9,12,15];
+      CFG.preplyMonths[mk] = { trials:0, rows: prices.map(p => ({ price:p, counts: CFG.settings.preply.tiers.map(()=>0) })) }; break; }
+    case 'add-prow': { const mk = ui.month || parts(new Date(), placeAt(new Date()).tz).key.slice(0,7), p = parseFloat(document.getElementById('new-prow').value);
+      if (p > 0 && !CFG.preplyMonths[mk].rows.some(r=>+r.price===p)) { CFG.preplyMonths[mk].rows.push({ price:p, counts: CFG.settings.preply.tiers.map(()=>0) }); CFG.preplyMonths[mk].rows.sort((a,b)=>a.price-b.price); } break; }
+    case 'del-prow': { const mk = ui.month || parts(new Date(), placeAt(new Date()).tz).key.slice(0,7); CFG.preplyMonths[mk].rows.splice(+el.dataset.idx,1); break; }
+    case 'link-event': { const ev = EVENTS.find(e=>e.id===el.dataset.ev), sid = document.getElementById('link-'+ev.id).value; const s = studentById(sid); (s.match ||= []).push(ev.summary); break; }
+    case 'discard': CFG = JSON.parse(SAVED); ui.msg=''; break;
+    case 'signin': Store.signIn(); return;
+    case 'signout': Store.signOut(); return;
+    case 'reload': location.reload(); return;
+    case 'check-mail': checkMail(); return;
+    case 'save': save(); return;
+  }
+  if (a !== 'add-price') ui.msg = ui.msg && !dirty() ? ui.msg : '';
+  render();
+}
+async function save(){
+  ui.saving = true; ui.msg = ''; render();
+  try {
+    if (!Store.local) await Store.save(CFG);
+    Store.cacheSet(CFG, Store.etag);
+    SAVED = JSON.stringify(CFG); ui.msg = Store.local ? 'Enregistré dans ce navigateur.' : 'Enregistré.';
+    setTimeout(()=>{ if (ui.msg.startsWith('Enregistré')){ ui.msg=''; render(); } }, 2500);
+  } catch(e){
+    if (e.code === 'conflict'){
+      ui.msg = 'Tes réglages ont été modifiés sur un autre appareil. Rechargement de la dernière version…';
+      ui.saving = false; render(); setTimeout(() => location.reload(), 2500); return;
+    }
+    ui.msg = 'L’enregistrement a échoué. Vérifie ta connexion et réessaie.';
+  }
+  ui.saving = false; render();
+}
+document.addEventListener('click', e => { const el = e.target.closest('[data-act]'); if (el && !el.matches('select')) act(el.dataset.act, el); });
+document.addEventListener('keydown', e => { if ((e.key==='Enter'||e.key===' ') && e.target.matches('[role="button"][data-act]')) { e.preventDefault(); act(e.target.dataset.act, e.target); } });
+document.addEventListener('change', e => {
+  const el = e.target;
+  if (el.dataset.actChange === 'student-place' || el.dataset.actChange === 'travel-place'){
+    const o = el.dataset.actChange === 'student-place' ? CFG.students[+el.dataset.i] : CFG.settings.travel[+el.dataset.i];
+    const label = PLACES.find(p=>p[1]===el.value)?.[0] || el.value; o.tz = el.value;
+    if (el.dataset.actChange === 'student-place') o.place = label; else o.label = label;
+    return render();
+  }
+  const path = el.dataset.path; if (!path) return;
+  let v = el.dataset.bool ? el.checked : el.value;
+  if (el.dataset.num) v = v === '' ? 0 : parseFloat(v);
+  if (el.dataset.list) v = String(v).split(',').map(s=>s.trim()).filter(Boolean);
+  setPath(path, v); markDirty();
+});
+
+/* ---------- boot: cache local → compte Microsoft → config.json dans OneDrive ---------- */
+(async () => {
+  const cached = Store.cacheGet();
+  if (validCfg(cached?.cfg)) adopt(cached.cfg);
+  if (Store.local){ ui.phase = 'ready'; return render(); }
+  render();
+  try { await Store.init(); } catch { ui.phase = 'error'; return render(); }
+  if (!Store.account){ ui.phase = 'signin'; return render(); }
+  if (validCfg(cached?.cfg)){ ui.phase = 'ready'; render(); } // affichage immédiat depuis le cache
+  try {
+    const remote = await Store.load();
+    if (remote && validCfg(remote.cfg)){
+      Store.etag = remote.etag; Store.cacheSet(remote.cfg, remote.etag);
+      if (!dirty()) adopt(remote.cfg);
+      ui.phase = 'ready';
+    } else { // premier lancement : crée config.json dans OneDrive (depuis le cache s'il existe, sinon réglages par défaut)
+      Store.etag = null; await Store.save(CFG); Store.cacheSet(CFG, Store.etag); SAVED = JSON.stringify(CFG); ui.phase = 'ready';
+    }
+  } catch (e) {
+    if (ui.phase !== 'ready') ui.phase = 'error';
+    ui.msg = 'Impossible de joindre OneDrive. Affichage de la dernière version enregistrée sur cet appareil.';
+  }
+  render();
+})();
+setInterval(() => { if (!document.activeElement || document.activeElement === document.body) render(); }, 60000);
+})();
+</script>
+</body>
+</html>
