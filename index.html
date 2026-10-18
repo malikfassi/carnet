@@ -330,6 +330,16 @@ function derive(){
     lessons.push({ ev, s, start, end:new Date(start.getTime()+50*60000), place:pl, zp, key:zp.key, mk:zp.key.slice(0,7),
       sp: validTz(s.tz) ? parts(start, s.tz) : null, upcoming:start > now, noshow: ev.colorId && ev.colorId === CFG.settings.noshowColor });
   }
+  // cours passés saisis à la main (sans date) : complètent les cours trouvés pour atteindre le total du mois
+  for (const s of studs){
+    for (const [mk, n] of Object.entries(s.past || {})){
+      const found = lessons.filter(l => l.s === s && l.mk === mk && !l.upcoming).length;
+      const start = new Date(mk + '-01T12:00:00Z'), key = mk + '-01';
+      for (let k = 0; k < Math.round(+n||0) - found; k++)
+        lessons.push({ ev:{ id:`past-${s.id}-${mk}-${k}`, summary:'' }, s, start, end:start, place:placeAt(start), zp:{ h:0, mi:0, hm:'—', key },
+          key, mk, sp:null, upcoming:false, noshow:false, undated:true });
+    }
+  }
   lessons.sort((a,b)=>a.start-b.start);
   const seen = new Set();
   for (const l of lessons){
@@ -359,7 +369,7 @@ function monthAccount(mk, D){
   const manual = CFG.preplyMonths[mk];
   if (manual){ trials += +manual.trials||0;
     for (const r of manual.rows){ const k = +r.price; const row = rows.get(k) || { price:k, counts:tiers.map(()=>0) }; tiers.forEach((t,i)=>row.counts[i] += +(r.counts[i]||0)); rows.set(k,row); } }
-  for (const l of D.lessons.filter(l => l.mk===mk && l.s.platform==='preply')){
+  if (!manual) for (const l of D.lessons.filter(l => l.mk===mk && l.s.platform==='preply')){
     if (l.trial){ trials++; continue; }
     const row = rows.get(l.price) || { price:l.price, counts:tiers.map(()=>0) };
     const i = tiers.findIndex(t => t.rate === l.rate); if (i >= 0) row.counts[i]++; rows.set(l.price,row);
@@ -400,7 +410,7 @@ function vSemaine(D){
   const now = D.now, here = placeAt(now), today = parts(now, here.tz).key;
   const wk = ui.week || addDays(today, -weekday(today));
   const days = [...Array(7)].map((_,i)=>addDays(wk,i));
-  const inWeek = D.lessons.filter(l => l.key >= days[0] && l.key <= days[6]);
+  const inWeek = D.lessons.filter(l => !l.undated && l.key >= days[0] && l.key <= days[6]);
   const mk = today.slice(0,7), A = monthAccount(mk, D);
   const next = D.lessons.find(l => l.start > now);
   const st = CFG.settings;
@@ -507,6 +517,28 @@ function vEleves(D){
   </div>`;
 }
 
+function undatedRow(us){
+  if (!us.length) return '';
+  const paid = us.filter(l => !l.trial), l0 = paid[0] || us[0];
+  return `<tr><td colspan="3" class="muted">${us.length} cours sans date${us.some(l=>l.trial)?' (dont l’essai)':''}</td>
+    <td class="r num">${paid.length ? money(l0.price, l0.cur) : '—'}</td><td class="r"><span class="chip c-plain">Saisi</span></td></tr>`;
+}
+function pastPanel(s, i, ls, today){
+  const months = Object.keys(s.past || {}).sort().reverse();
+  const found = m => ls.filter(l => !l.undated && l.mk === m && !l.upcoming).length;
+  const lastMonth = addMonths(today.slice(0,7), -1);
+  return `<div class="panel"><h2>Cours sans date</h2>
+    <p class="muted small" style="margin:-4px 0 10px">Pour les mois où tu n’as plus les emails : indique combien de cours tu as donnés à ${esc(s.name)} ce mois-là. Si le carnet en trouve déjà, il garde le plus grand des deux.</p>
+    ${months.length ? `<div class="scroll"><table><tbody>${months.map(m => `<tr>
+      <td><b>${monthName(m)}</b>${s.platform==='preply' && CFG.preplyMonths[m] ? '<div class="muted small">Mois saisi dans Compta : c’est la saisie de Compta qui compte.</div>' : ''}</td>
+      <td class="r"><input class="in n" type="number" min="0" step="1" data-path="students.${i}.past.${m}" data-num="1" value="${+s.past[m]||0}" aria-label="Cours en ${monthName(m)}"></td>
+      <td class="muted small num">${found(m) ? `${found(m)} trouvés` : ''}</td>
+      <td><button class="btn ghost icon" data-act="del-past" data-i="${i}" data-m="${m}" aria-label="Supprimer ${monthName(m)}">✕</button></td></tr>`).join('')}</tbody></table></div>` : ''}
+    <div class="row" style="margin-top:10px"><input class="in" style="width:auto" type="month" id="past-m" value="${lastMonth}" max="${today.slice(0,7)}" aria-label="Mois">
+      <input class="in n" type="number" min="1" step="1" id="past-n" placeholder="Nb" aria-label="Nombre de cours">
+      <button class="btn" data-act="add-past" data-i="${i}">Ajouter</button></div>
+  </div>`;
+}
 function vEleve(D){
   const i = CFG.students.findIndex(s => s.id === ui.student), s = CFG.students[i];
   if (!s) { ui.view = 'eleves'; return vEleves(D); }
@@ -533,12 +565,13 @@ function vEleve(D){
     <div class="grid2">
       <div class="panel"><h2>Cours</h2>
         ${Object.keys(byMonth).sort().reverse().map(m => `<h3 style="margin:14px 0 4px">${monthName(m)} · ${byMonth[m].length} cours</h3>
-          <div class="scroll"><table><tbody>${byMonth[m].slice().reverse().map(l => `<tr>
+          <div class="scroll"><table><tbody>${undatedRow(byMonth[m].filter(l=>l.undated))}${byMonth[m].filter(l=>!l.undated).reverse().map(l => `<tr>
             <td class="num">${fmtKey(l.key)}</td><td class="num"><b>${l.zp.hm}</b> <span class="muted small">${esc(l.place.label)}</span></td>
             <td class="num muted">${l.sp?l.sp.hm+' chez l’élève':''}</td><td class="r num">${l.trial?'—':money(l.price,l.cur)}</td>
-            <td class="r">${l.trial?'<span class="chip c-trial">Essai</span>':l.noshow?'<span class="chip c-warn">Absent</span>':l.upcoming?'<span class="chip c-plain">Prévu</span>':'<span class="chip c-done">Fait</span>'}</td></tr>`).join('')}</tbody></table></div>`).join('') || '<div class="empty">Aucun cours trouvé dans le calendrier pour cet élève. Vérifie les mots-clés ci-contre.</div>'}
+            <td class="r">${l.trial?'<span class="chip c-trial">Essai</span>':l.noshow?'<span class="chip c-warn">Absent</span>':l.upcoming?'<span class="chip c-plain">Prévu</span>':'<span class="chip c-done">Fait</span>'}</td></tr>`).join('')}</tbody></table></div>`).join('') || '<div class="empty">Aucun cours pour cet élève pour l’instant. Ajoute ses cours passés dans « Cours sans date ».</div>'}
       </div>
       <div class="stack">
+        ${pastPanel(s, i, ls, today)}
         <div class="panel"><h2>Prix</h2>
           <div class="timeline">${prices.map((x,k)=>`<div class="tl${k===prices.length-1?' cur':''}"><i></i><span><b class="num">${money(+x.amount,cur)}</b> <span class="muted small">à partir du ${x.from?fmtKey(x.from,{day:'numeric',month:'long',year:'numeric'}):'?'}</span></span>
             <button class="btn ghost icon" data-act="del-price" data-i="${i}" data-j="${x.j}" aria-label="Supprimer ce prix">✕</button></div>`).join('') || '<p class="muted">Aucun prix.</p>'}</div>
@@ -746,6 +779,10 @@ function act(a, el){
     case 'add-price': { const s = CFG.students[+el.dataset.i], amt = parseFloat(document.getElementById('np-amount').value), from = document.getElementById('np-from').value;
       if (!(amt >= 0) || !from) { ui.msg = 'Indique un prix et une date.'; break; } s.prices.push({ from, amount:amt }); ui.msg=''; break; }
     case 'del-price': CFG.students[+el.dataset.i].prices.splice(+el.dataset.j,1); break;
+    case 'add-past': { const s = CFG.students[+el.dataset.i], m = document.getElementById('past-m').value, n = parseInt(document.getElementById('past-n').value, 10);
+      if (!/^\d{4}-\d{2}$/.test(m) || !(n > 0)) { ui.msg = 'Indique un mois et un nombre de cours.'; break; }
+      (s.past ||= {})[m] = n; ui.msg = ''; break; }
+    case 'del-past': delete CFG.students[+el.dataset.i].past[el.dataset.m]; break;
     case 'add-travel': { const last = [...CFG.settings.travel].sort((a,b)=>a.from<b.from?-1:1).pop(); CFG.settings.travel.push({ from: addDays(last?.from || new Date().toISOString().slice(0,10), 30), label:'France', tz:'Europe/Paris' }); break; }
     case 'del-travel': CFG.settings.travel.splice(+el.dataset.i,1); break;
     case 'add-fx': { const m = document.getElementById('fx-m').value, v = parseFloat(document.getElementById('fx-v').value); if (m && v > 0) CFG.settings.fx.months[m] = v; break; }
@@ -764,7 +801,7 @@ function act(a, el){
     case 'check-mail': checkMail(); return;
     case 'save': save(); return;
   }
-  if (a !== 'add-price') ui.msg = ui.msg && !dirty() ? ui.msg : '';
+  if (a !== 'add-price' && a !== 'add-past') ui.msg = ui.msg && !dirty() ? ui.msg : '';
   render();
 }
 async function save(){
