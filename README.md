@@ -13,7 +13,7 @@ A static page (GitHub Pages) with no server and no data in the repo.
 1. https://entra.microsoft.com → **App registrations** → **New registration**.
 2. Name: `Carnet de cours` (this name appears on the sign-in screen and in OneDrive's `Apps/` folder).
 3. **Supported account types**: *Accounts in any organizational directory and personal Microsoft accounts*.
-4. **Redirect URI**: platform **Single-page application (SPA)**, URL `https://<user>.github.io/<repo>/`
+4. **Redirect URI**: platform **Single-page application (SPA)**, URL `https://malikfassi.github.io/carnet/`
    (and `http://localhost:5173/` to test locally).
 5. **API permissions** → Microsoft Graph → *Delegated*: `User.Read`, `Mail.Read`, `Files.ReadWrite.AppFolder`. No admin consent needed for a personal account.
 6. Copy the **Application (client) ID** into `env.js` → `CLIENT_ID`.
@@ -29,7 +29,7 @@ gh repo create carnet --public --source . --push
 gh api repos/{owner}/carnet/pages -X POST -f "source[branch]=main" -f "source[path]=/"
 ```
 
-The page is then available at `https://<user>.github.io/carnet/`.
+The page is then available at https://malikfassi.github.io/carnet/.
 
 ## 3. On Zineb's side
 
